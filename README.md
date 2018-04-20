@@ -20,6 +20,4 @@ For any questions please contact **Aleksandr Ianevski** [@AleksandrIanevski](ale
 
 ## Copyright and license
 
-Code copyright 2017 SynergyFinder
-
-Code released under the [BSD 3-clause license] (https://github.com/AleksandrIanevski/SynergyFinder/blob/master/LICENSE)
+Code copyright 2018 DECREASE
