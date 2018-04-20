@@ -1,4 +1,4 @@
-# DECREASE: a method for accurate Drug Combination RESponse prEdictions.
+# DECREASE: a method for accurate Drug Combination RESponse prEdictions using limited set of measurements 
 
 
 
