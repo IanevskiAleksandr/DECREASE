@@ -16,7 +16,7 @@
 ![alt text](https://cdn.rawgit.com/IanevskiAleksandr/DECREASE/49e1e8f9/www/main.png)
 
 
-For any questions please contact **Aleksandr Ianevski** [@AleksandrIanevski](aleksandr.ianevski@helsinki.fi)
+For any questions please contact **Aleksandr Ianevski** [@IanevskiAleksandr](aleksandr.ianevski@helsinki.fi)
 
 ## Copyright and license
 
