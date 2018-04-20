@@ -13,7 +13,7 @@
 ##
 
 
-![alt text](https://cdn.rawgit.com/AleksandrIanevski/SynergyFinder/3a2b9547/Picture1.png)
+![alt text](https://cdn.rawgit.com/IanevskiAleksandr/DECREASE/49e1e8f9/www/main.png)
 
 
 For any questions please contact **Aleksandr Ianevski** [@AleksandrIanevski](aleksandr.ianevski@helsinki.fi)
