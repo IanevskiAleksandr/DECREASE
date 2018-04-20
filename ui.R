@@ -1,4 +1,3 @@
-.libPaths("/home/shiny/R/x86_64-redhat-linux-gnu-library/3.4/")
 library(shiny); library(shinythemes); library(shinyjs); library(shinytoastr)
 
 shinyUI(navbarPage(
