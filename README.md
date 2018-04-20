@@ -1,4 +1,6 @@
-# SynergyFinder: a web application for analyzing drug combination dose-response matrix data. 
+# DECREASE: a method for accurate Drug Combination RESponse prEdictions.
+
+
 
 <a href="https://synergyfinder.fimm.fi"><img src="https://cdn.rawgit.com/AleksandrIanevski/SynergyFinder/975ced15/logo.png" align="left" hspace="10" vspace="6"></a>
 
