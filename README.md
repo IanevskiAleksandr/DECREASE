@@ -2,7 +2,7 @@
 
 
 
-<a href="https://synergyfinder.fimm.fi"><img style="width:50%" width = "50%" src="https://cdn.rawgit.com/IanevskiAleksandr/DECREASE/72b74b51/www/logo.png" align="left" hspace="10" vspace="6"></a>
+<a href="https://synergyfinder.fimm.fi"><img style="width:25%" width = "25%" src="https://cdn.rawgit.com/IanevskiAleksandr/DECREASE/72b74b51/www/logo.png" align="left" hspace="10" vspace="6"></a>
 
 **Article**: https://doi.org/10.1093/bioinformatics/btx162
 
