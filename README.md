@@ -21,4 +21,5 @@ For any questions please contact **Aleksandr Ianevski** [@AleksandrIanevski](ale
 ## Copyright and license
 
 Code copyright 2018 DECREASE
+
 Licence [https://github.com/IanevskiAleksandr/DECREASE/blob/master/LICENSE]
