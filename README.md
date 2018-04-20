@@ -1,8 +1,8 @@
-# DECREASE: a method for accurate Drug Combination RESponse prEdictions using limited set of measurements 
+# DECREASE: a method for accurate Drug Combination RESponse prEdictions
 
 
 
-<a href="https://synergyfinder.fimm.fi"><img style="width:20%" width = "20%" src="https://cdn.rawgit.com/IanevskiAleksandr/DECREASE/72b74b51/www/logo.png" align="left" hspace="10" vspace="6"></a>
+<a href="https://synergyfinder.fimm.fi"><img style="width:15%" width = "15%" src="https://cdn.rawgit.com/IanevskiAleksandr/DECREASE/72b74b51/www/logo.png" align="left" hspace="10" vspace="6"></a>
 
 **Article**: ...
 
