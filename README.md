@@ -7,8 +7,7 @@
 **Article**: [to be filled]
 
 
-**DECREASE** an efficient machine learning method that requires only a limited set of pairwise dose-response measurements to enable accurate synergy predictions, hence drastically reducing the time and resources needed in high-throughput combinatorial screening. The public version of web application (https://decrease.fimm.fi) is hosted by Open Source Shiny Server.
-
+**DECREASE** an efficient machine learning method that requires only a limited set of pairwise dose-response measurements to enable accurate synergy predictions, hence drastically reducing the time and resources needed in high-throughput combinatorial screening. The public version of web application (https://decrease.fimm.fi) is hosted by Open Source Shiny Server and its implementation is available <a href="https://github.com/IanevskiAleksandr/DECREASE/archive/master.zip">here</a>.
 
 ##
 
