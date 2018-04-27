@@ -108,7 +108,7 @@ CALC_IC50_EC50_DSS = compiler::cmpfun(function(xpr_tbl, DSS_typ, readoutCTX = F,
   # check deviations with Bliss
   MatrOutl[-1,-1] = outlier_remove(abs(dev_[-1,-1] - median(dev_[-1,-1], na.rm = T)), iqr_ = 5) & (dev_[-1,-1] > 25)
   MatrOutl[,1] = as.logical(colSums(MatrOutl, na.rm = T)) & devD1 > 10 | devD1 > 15
-  MatrOutl[1,] = as.logical(rowSums(MatrOutl, na.rm = T)) & devD2 > 10 | devD1 > 15
+  MatrOutl[1,] = as.logical(rowSums(MatrOutl, na.rm = T)) & devD2 > 10 | devD2 > 15
 
   # remove possible outliers
   MatrOutl[is.na(MatrOutl)] = !1; MatrTr[MatrOutl] = NA
