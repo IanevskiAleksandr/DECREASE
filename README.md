@@ -10,7 +10,7 @@
 ##
 
 
-![alt text](https://cdn.rawgit.com/IanevskiAleksandr/DECREASE/49e1e8f9/www/main.png)
+![alt text](https://github.com/IanevskiAleksandr/DECREASE/blob/master/main.png)
 
 
 For any questions please contact **Aleksandr Ianevski** [@IanevskiAleksandr](aleksandr.ianevski@helsinki.fi)
