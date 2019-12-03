@@ -9,14 +9,18 @@ outlier_remove <- compiler::cmpfun(function(xTmp, iqr_ = 1.5){
 })
 
 
-# fit single agent dose-response curve (restricted to 0-100 range)
+# fit single agent dose-response curve
 CALC_IC50_EC50_DSS = compiler::cmpfun(function(xpr_tbl, DSS_typ, readoutCTX = F, drug_name="drug_name")
 {
   tryCatch({
     
-    mat_tbl <- data.frame(inhibition=as.numeric(xpr_tbl), dose = as.numeric(names(xpr_tbl))); mat_tbl$logconc = log10(mat_tbl$dose); mat_tbl$viability = 100 - mat_tbl$inhibition;
-    mat_tbl$inhibition2 = mat_tbl$inhibition; mat_tbl$viability2 = mat_tbl$viability; mat_tbl <- mat_tbl[order(mat_tbl[,"dose"]),] 
+    mat_tbl <- data.frame(inhibition=as.numeric(xpr_tbl), dose = as.numeric(names(xpr_tbl))); #dose = 10**(1:length(xpr_tbl)));
+    mat_tbl$logconc = log10(mat_tbl$dose); mat_tbl$viability = 100 - mat_tbl$inhibition;
+    mat_tbl$inhibition2 = mat_tbl$inhibition; mat_tbl$viability2 = mat_tbl$viability;
+    mat_tbl <- mat_tbl[order(mat_tbl[,"dose"]),] 
+    
     if(any(duplicated(mat_tbl$inhibition))) mat_tbl$inhibition <- seq(from = 0, length.out = length(mat_tbl$inhibition), by = 0.01) + mat_tbl$inhibition; 
+    
     
     estimate_param <- tryCatch({drm(inhibition ~ logconc, data = mat_tbl, fct = LL.4(fixed = c(NA, NA, NA,NA),names = c("SLOPE","MIN","MAX","IC50")),logDose=10,control = drmc(errorm = F))}, 
                                warning=function(w){drm(inhibition ~ logconc, data = mat_tbl, fct = L.4(fixed = c(NA, NA, NA,NA), names = c("SLOPE","MIN","MAX","IC50")),logDose=10)},
@@ -73,8 +77,22 @@ CALC_IC50_EC50_DSS = compiler::cmpfun(function(xpr_tbl, DSS_typ, readoutCTX = F,
     coef_ic50 <- coef(nls_result_ic50)[c("IC50", "SLOPE","MAX","MIN")]; coef_ic50["IC50"] <- 10^coef_ic50["IC50"]; coef_ic50["IC50"] <- ifelse(coef_ic50["SLOPE"]<0,max_signal,coef_ic50["IC50"])
     coef_ic50["IC50"] <- ifelse(coef_ic50["MAX"]<0,max_signal,coef_ic50["IC50"]);coef_ic50["IC50"] <- ifelse(coef_ic50["MAX"]<10,max_signal,coef_ic50["IC50"])
     coef_ic50["MAX"] <- ifelse(coef_ic50["MAX"]<0,0,coef_ic50["MAX"]);coef_ic50["IC50"] <- ifelse(all(c(max(mat_tbl$inhibition,na.rm=T),min(mat_tbl$inhibition,na.rm=T))>50),min_signal,coef_ic50["IC50"])
-    
+    x <- seq(min(mat_tbl$logconc),max(mat_tbl$logconc), length=100); yic <- predict(nls_result_ic50, data.frame(logconc=x))
+    perInh <- t(matrix(mat_tbl[,"inhibition"],dimnames=list(paste0(rep("D", length(mat_tbl[,"inhibition"])), 1:length(mat_tbl[,"inhibition"])))))
+    coef_tec50 = coef_ic50; 
+    coef_tec50["IC50"] <- ifelse(coef_tec50["MAX"] > 25, coef_tec50["IC50"], max(mat_tbl$dose,na.rm=T))
+    if(readoutCTX){names(coef_tec50) <- c("TC50","SLOPE","MAX","MIN"); ytec <- yic; perViaTox <- perInh;} else{
+      names(coef_tec50) <- c("EC50","SLOPE","MAX","MIN"); coef_tec50["SLOPE"] = -1 * coef_tec50["SLOPE"]; # min - 0, max - 77 in ec50 it is max - 100, min - 23
+      tmp = coef_tec50["MAX"]; coef_tec50["MAX"] = 100 - coef_tec50["MIN"]; coef_tec50["MIN"] = 100 - tmp; ytec <- 100 - yic;
+      perViaTox <- 100 - perInh;
+    }
+    ############################# 
+    #############    DSS
+    dss_score <- 100#round(as.numeric(dss(coef_ic50["IC50"],coef_ic50["SLOPE"],coef_ic50["MAX"],min_signal,max_signal, DSS.type=as.integer(DSS_typ))),1);
     coef_ic50 <- c(coef_ic50,Min.Conc.tested=min_signal,Max.Conc.tested=max_signal,IC50_std_error=ic50std_Error,DSS=dss_score)
+    coef_tec50 <- c(coef_tec50,Min.Conc.tested=min_signal,Max.Conc.tested=max_signal,TEC50_std_error=ic50std_Error)
+    IC50_df <- data.frame(DRUG_NAME="drug_name",ANALYSIS_NAME="IC50", t(as.matrix(coef_ic50)), perInh,GRAPH=NA, DSS = as.numeric(dss_score), sDSS = "", SE_of_estimate = as.numeric(ic50std_resid))
+    
     return (list(coef_ic50=coef_ic50,nls_result_ic50=nls_result_ic50));
   })
 })
@@ -82,7 +100,8 @@ CALC_IC50_EC50_DSS = compiler::cmpfun(function(xpr_tbl, DSS_typ, readoutCTX = F,
   data_cell <- readRDS("annot.RDS")
   set.seed(42); influentPoint = NULL # for now
   MatrTr = reshape2::acast(data_cell, Conc1~Conc2, value.var = "Response")
-
+  #if(fcurve){MatrTr[MatrTr<0]=0;MatrTr[MatrTr>100]=100} 
+ 
   # check [0,0] conc.
   if(MatrTr[1,1] < max(MatrTr[2,1], MatrTr[1,2])) MatrTr[1,1] = 100
 
@@ -101,6 +120,9 @@ CALC_IC50_EC50_DSS = compiler::cmpfun(function(xpr_tbl, DSS_typ, readoutCTX = F,
     predict(CALC_IC50_EC50_DSS(D2Len, DSS_typ = 2, drug_name = "")$nls_result_ic50)
   }, error = function(e){D2Len})
 
+  # new fix half curve
+  MatrTrCopy = MatrTr; if(fcurve){MatrTr[,1] = d1; MatrTr[1,] = d2} else {MatrTr[,1] = (MatrTr[,1]+d1)/2; MatrTr[1,] = (MatrTr[1,]+d2)/2;}
+
   # single-agent deviations
   devD1 = abs(d1 - (MatrTr[,1])); devD2 = abs(d2 - (MatrTr[1,])); dev_ = abs(bliss.mat - MatrTr);
   MatrOutl = matrix(!1, nrow = nrow(MatrTr), ncol = ncol(MatrTr))
@@ -108,7 +130,7 @@ CALC_IC50_EC50_DSS = compiler::cmpfun(function(xpr_tbl, DSS_typ, readoutCTX = F,
   # check deviations with Bliss
   MatrOutl[-1,-1] = outlier_remove(abs(dev_[-1,-1] - median(dev_[-1,-1], na.rm = T)), iqr_ = 5) & (dev_[-1,-1] > 25)
   MatrOutl[,1] = as.logical(colSums(MatrOutl, na.rm = T)) & devD1 > 10 | devD1 > 15
-  MatrOutl[1,] = as.logical(rowSums(MatrOutl, na.rm = T)) & devD2 > 10 | devD2 > 15
+  MatrOutl[1,] = as.logical(rowSums(MatrOutl, na.rm = T)) & devD2 > 10 | devD1 > 15
 
   # remove possible outliers
   MatrOutl[is.na(MatrOutl)] = !1; MatrTr[MatrOutl] = NA
@@ -116,6 +138,8 @@ CALC_IC50_EC50_DSS = compiler::cmpfun(function(xpr_tbl, DSS_typ, readoutCTX = F,
 
   matr_Out = reshape2::melt( 100 - MatrTr ); colnames(matr_Out) <- c("Conc1", "Conc2", "Response");
   matr_Out = dplyr::arrange(matr_Out, Conc1, Conc2)
+  matr_OutCopy = reshape2::melt( 100 - MatrTrCopy ); colnames(matr_OutCopy) <- c("Conc1", "Conc2", "Response");
+  matr_OutCopy = dplyr::arrange(matr_OutCopy, Conc1, Conc2)
   
   # fill single-agent response columns (check the design section of manuscript)
   matr_Out$R1 <- sapply(1:nrow(matr_Out), function(i){
@@ -151,82 +175,145 @@ CALC_IC50_EC50_DSS = compiler::cmpfun(function(xpr_tbl, DSS_typ, readoutCTX = F,
     matr_Out =reshape2::melt( nsclc2.hat.nmf ); colnames(matr_Out) <- c("Conc1", "Conc2", "Response");
     dplyr::arrange(matr_Out, Conc1, Conc2)$Response
 
-  }, mc.cores = 4))
+  }, mc.cores = 8))
 
   # prepare predictions
   if(sum(colSums(cNMFpred == 0)==0)>1) cNMFpred = cNMFpred[,colSums(cNMFpred == 0) == 0]; 
+  #NNMF20 = sapply(1:nrow(NNMF20), function(i) modeest::venter(NNMF20[i,]))
+  
+  # matr_Out$pred2 = rowMeans(cNMFpred)
+  # matr_Out$pred3 = sapply(1:nrow(cNMFpred), function(i) modeest::venter(cNMFpred[i,]))
+
   cNMFpred = sapply(1:nrow(cNMFpred), function(i) modeest::venter(cNMFpred[i,]))
   
   ######################################################################################################################
   ##############################################     fit XGBoost     ###################################################
+#  
+#  obj.fun = compiler::cmpfun(makeSingleObjectiveFunction(
+#    name = "XGBoost",
+#    fn = function(x) {
+#      logNtree = x[1]; lambda = x[2]; alpha = x[3]; maxdepth = x[4]; subsample = x[5]; colsample_bytree = x[6]; eta = x[7];  
+#
+#      # repeated CV
+#      MAD_ <- mclapply(1:3, function(repCv){
+#
+#        MAD_i = 0
+#        flds <- caret::createFolds(data_cell_Training$Response, k = 3, list = T, returnTrain = F);
+#
+#        for(k in 1:length(flds)){
+#          testData <- data_cell_Training[flds[[k]], ]; trainData <- data_cell_Training[-flds[[k]], ]
+#
+#          fit = xgboost(data=as.matrix(trainData[,c("R1","R2","Conc1","Conc2")]),label = trainData$Response, verbose = F,
+#                        nrounds=round(2**logNtree), nthread = 1, save_name = paste0("xgboost",repCv,"_",k,".model"),
+#                        params=list(objective = "reg:linear", max.depth=maxdepth, eta=eta, lambda = lambda, alpha = alpha,
+#                                    subsample=subsample, colsample_bytree = colsample_bytree))
+#
+#
+#          ypred = predict(fit, as.matrix(testData[,c("R1","R2","Conc1","Conc2")]));
+#          MAD_i <- MAD_i + mean(abs(ypred - testData$Response), na.rm = T);
+#
+#        }
+#        MAD_i
+#      }, mc.cores = 3)
+#
+#      Reduce(sum, MAD_)
+#
+#    },
+#    par.set = makeParamSet(
+#      makeNumericVectorParam("logNtree", len = 1, lower = 4, upper = 9),
+#      makeNumericVectorParam("lambda", len = 1, lower = 0, upper = 3),
+#      makeNumericVectorParam("alpha", len = 1, lower = 0, upper = 3),
+#      makeIntegerVectorParam("maxdepth", len = 1, lower = 1, upper = 6),
+#      makeNumericVectorParam("subsample", len = 1, lower = .4, upper = 1),
+#      makeNumericVectorParam("colsample_bytree", len = 1, lower = .4, upper = 1),
+#      makeNumericVectorParam("eta", len = 1, lower = .001, upper = .1)
+#    ),
+#    minimize = !0
+#  ))
+#
+#  des = generateDesign(n = 90, par.set = getParamSet(obj.fun), fun = lhs::randomLHS)
+#
+#  des$y = apply(des, 1, obj.fun) #as.numeric(mclapply(1:nrow(des), function(i) obj.fun(des[i,]), mc.cores = 4))
+#
+#  # surr.km = makeLearner("regr.km", predict.type = "se", covtype = "matern3_2", control = list(trace = F))
+#  #
+#  # library(parallelMap) # parallelStartMulticore(cpus = 4, show.info = T)
+#  # modelsXGBoost = mbo(obj.fun, design = des, learner = surr.km, show.info = !0,
+#  #                    control = setMBOControlInfill(setMBOControlTermination(makeMBOControl(), iters = 15),
+#  #                                                  crit = makeMBOInfillCritEI()))$opt.path$env[["path"]]
+#  # 
+#  # order based on error
+#  # orderMAD = order(modelsXGBoost$y); models = modelsXGBoost[orderMAD, ]; #run = XGBoostRun[orderMAD]
+#  
+#  models = des[order(des$y), ]; 
+#
+#  # Fit with 4 models with best parameters
+#  XGBoostpred <- do.call("cbind", mclapply(1:5, function(i){
+#    fit <- xgboost(as.matrix(data_cell_Training[,c("R1","R2","Conc1","Conc2")]), label = data_cell_Training$Response,
+#                   verbose = F, nrounds=round(2**models[i,"logNtree"]) , nthread = 1,
+#                   params=list(objective = "reg:linear", max.depth=models[i,"maxdepth"], eta=models[i,"eta"], lambda = models[i,"lambda"],
+#                               alpha = models[i,"alpha"], subsample=models[i,"subsample"], colsample_bytree = models[i,"colsample_bytree"]))
+#    predict(fit, as.matrix(matr_Out[,c("R1","R2","Conc1","Conc2")]));
+#  }))
+#  XGBoostpred = sapply(1:nrow(XGBoostpred), function(i) modeest::venter(XGBoostpred[i,]))
+
+
+
+### parameter set 
+gdes <- function() generateDesign(n = 120, par.set = makeParamSet(
+  makeNumericVectorParam("logNtree", len = 1, lower = 4, upper = 9), makeNumericVectorParam("lambda", len = 1, lower = 0, upper = 3),
+  makeNumericVectorParam("alpha", len = 1, lower = 0, upper = 3), makeIntegerVectorParam("maxdepth", len = 1, lower = 1, upper = 6),
+  makeNumericVectorParam("subsample", len = 1, lower = .4, upper = 1), makeNumericVectorParam("colsample_bytree", len = 1, lower = .4, upper = 1),
+  makeNumericVectorParam("eta", len = 1, lower = .001, upper = .1)
+), fun = lhs::randomLHS)
+
+obj.fun.err = function(x) {
   
-  obj.fun = compiler::cmpfun(makeSingleObjectiveFunction(
-    name = "XGBoost",
-    fn = function(x) {
-      logNtree = x[1]; lambda = x[2]; alpha = x[3]; maxdepth = x[4]; subsample = x[5]; colsample_bytree = x[6]; eta = x[7];  
+  logNtree = x[1][[1]]; lambda = x[2][[1]]; alpha = x[3][[1]]; maxdepth = x[4][[1]]; subsample = x[5][[1]]; 
+  colsample_bytree = x[6][[1]]; eta = x[7][[1]]; MAE_ <- 0; 
+  
+  # repeated CV
+  for(repCv in 1:2){
+    flds <- caret::createFolds(data_cell_Training$Response, k = 3, list = T, returnTrain = F);
+    for(k in 1:length(flds)){
+      
+      testData <- data_cell_Training[flds[[k]], ]; trainData <- data_cell_Training[-flds[[k]], ]
+      fit = xgboost(data=data.matrix(trainData[,c("R1","R2","Conc1","Conc2")]),label = trainData$Response, verbose = F,
+                    nrounds=round(2**logNtree), nthread = 8, params=list(objective = "reg:linear", max.depth=maxdepth, 
+                             eta=eta, lambda = lambda, alpha = alpha, subsample=subsample, colsample_bytree = colsample_bytree))
+      
+      ypred = predict(fit, as.matrix(testData[,c("R1","R2","Conc1","Conc2")]));
+      MAE_ <- MAE_ + mean(abs(ypred - testData$Response), na.rm = T);
+    }
+  }
+  MAE_
+}
+des <- gdes()
+gc(T); des$y = apply(des, 1, obj.fun.err)
 
-      # repeated CV
-      MAD_ <- mclapply(1:3, function(repCv){
-
-        MAD_i = 0
-        flds <- caret::createFolds(data_cell_Training$Response, k = 3, list = T, returnTrain = F);
-
-        for(k in 1:length(flds)){
-          testData <- data_cell_Training[flds[[k]], ]; trainData <- data_cell_Training[-flds[[k]], ]
-
-          fit = xgboost(data=as.matrix(trainData[,c("R1","R2","Conc1","Conc2")]),label = trainData$Response, verbose = F,
-                        nrounds=round(2**logNtree), nthread = 1, save_name = paste0("xgboost",repCv,"_",k,".model"),
-                        params=list(objective = "reg:linear", max.depth=maxdepth, eta=eta, lambda = lambda, alpha = alpha,
-                                    subsample=subsample, colsample_bytree = colsample_bytree))
+models = des[order(des$y),]
+# Fit with 5 models with best parameters
+XGBoostpred <- do.call("cbind", lapply(1:5, function(i){
+  fit <- xgboost(as.matrix(data_cell_Training[,c("R1","R2","Conc1","Conc2")]), label = data_cell_Training$Response,
+                 verbose = F, nrounds=round(2**models[i,"logNtree"]) , nthread = 8,
+                 params=list(objective = "reg:linear", max.depth=models[i,"maxdepth"], eta=models[i,"eta"], lambda = models[i,"lambda"],
+                             alpha = models[i,"alpha"], subsample=models[i,"subsample"], colsample_bytree = models[i,"colsample_bytree"]))
+  predict(fit, as.matrix(matr_Out[,c("R1","R2","Conc1","Conc2")]));
+}))
+XGBoostpred = sapply(1:nrow(XGBoostpred), function(i) modeest::venter(XGBoostpred[i,]))
 
 
-          ypred = predict(fit, as.matrix(testData[,c("R1","R2","Conc1","Conc2")]));
-          MAD_i <- MAD_i + mean(abs(ypred - testData$Response), na.rm = T);
 
-        }
-        MAD_i
-      }, mc.cores = 3)
 
-      Reduce(sum, MAD_)
 
-    },
-    par.set = makeParamSet(
-      makeNumericVectorParam("logNtree", len = 1, lower = 4, upper = 9),
-      makeNumericVectorParam("lambda", len = 1, lower = 0, upper = 3),
-      makeNumericVectorParam("alpha", len = 1, lower = 0, upper = 3),
-      makeIntegerVectorParam("maxdepth", len = 1, lower = 1, upper = 6),
-      makeNumericVectorParam("subsample", len = 1, lower = .4, upper = 1),
-      makeNumericVectorParam("colsample_bytree", len = 1, lower = .4, upper = 1),
-      makeNumericVectorParam("eta", len = 1, lower = .001, upper = .1)
-    ),
-    minimize = !0
-  ))
-
-  des = generateDesign(n = 20, par.set = getParamSet(obj.fun), fun = lhs::randomLHS)
-
-  des$y = apply(des, 1, obj.fun) #as.numeric(mclapply(1:nrow(des), function(i) obj.fun(des[i,]), mc.cores = 4))
-
-  surr.km = makeLearner("regr.km", predict.type = "se", covtype = "matern3_2", control = list(trace = F))
-
-  # library(parallelMap) # parallelStartMulticore(cpus = 4, show.info = T)
-  modelsXGBoost = mbo(obj.fun, design = des, learner = surr.km, show.info = !0,
-                      control = setMBOControlInfill(setMBOControlTermination(makeMBOControl(), iters = 30),
-                                                    crit = makeMBOInfillCritEI()))$opt.path$env[["path"]]
-  # order based on error
-  orderMAD = order(modelsXGBoost$y); models = modelsXGBoost[orderMAD, ]; #run = XGBoostRun[orderMAD]
-
-  # Fit with 4 models with best parameters
-  XGBoostpred <- do.call("cbind", mclapply(1:4, function(i){
-    fit <- xgboost(as.matrix(data_cell_Training[,c("R1","R2","Conc1","Conc2")]), label = data_cell_Training$Response,
-                   verbose = F, nrounds=round(2**models[i,"logNtree"]) , nthread = 1,
-                   params=list(objective = "reg:linear", max.depth=models[i,"maxdepth"], eta=models[i,"eta"], lambda = models[i,"lambda"],
-                               alpha = models[i,"alpha"], subsample=models[i,"subsample"], colsample_bytree = models[i,"colsample_bytree"]))
-    predict(fit, as.matrix(matr_Out[,c("R1","R2","Conc1","Conc2")]));
-  }))
-  XGBoostpred = sapply(1:nrow(XGBoostpred), function(i) modeest::venter(XGBoostpred[i,]))
 
   # final prediction
   finalpred_ = (XGBoostpred + cNMFpred) / 2
-  
+    
+
   matr_Out$cNMFpred = cNMFpred; matr_Out$XGBoostpred = XGBoostpred; matr_Out$finalpred_ = finalpred_;
   matr_Out$finalpred_[trainInd] = matr_Out$Response[trainInd] 
+  if(!fcurve) matr_Out[matr_Out$Conc1 == 0 | matr_Out$Conc2 == 0, "finalpred_"] = matr_OutCopy[matr_OutCopy$Conc1 == 0 | matr_OutCopy$Conc2 == 0, "Response"]
+  
+
+  #if(fcurve){ matr_Out$finalpred_ = fields::Tps(matr_Out[,c("Conc1",  "Conc2")], matr_Out$finalpred_, lambda= 1e-7)$fitted.values }

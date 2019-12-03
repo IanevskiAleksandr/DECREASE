@@ -5,8 +5,7 @@ shinyServer(function(input, output, session) {
   shinyjs::runjs('$(".toHide2").hide(); $(".toHide5").hide();document.title = "DeCREaSE";'); shinyjs::disable("save_results");
   annot <<- NULL;
   
-  toastr_info(paste0("This link will expire in ", 30 - abs(difftime(anytime::anydate(file.info(paste0(getwd(),"/ui.R"))$mtime), anytime::anydate(Sys.Date()), units = c("days"))[[1]]),
-                     " days."),
+  toastr_info(paste0("A web-based implementation of method for accurate Drug Combination RESponse prEdictions."),
               title = "Welcome to DeCREaSE!", closeButton = !0, newestOnTop = !0, progressBar = !0, position = c("top-right"), 
               preventDuplicates = !0, showDuration = 1000, hideDuration = 2000, timeOut = 7000, extendedTimeOut = 1000,
               showEasing = "swing", hideEasing = "swing", showMethod = "fadeIn", hideMethod = "fadeOut")
@@ -17,10 +16,14 @@ shinyServer(function(input, output, session) {
     showModal(modalDialog(
       title = "DECREASE",
       fluidRow(
-        column(5, div(id="tourinpfile",fileInput("fileinp", "Upload your data (*.xlsx, *.txt, *csv)", multiple = F, accept = NULL, width = NULL))),
-        column(3, div(id="tourfiletype", selectInput("fileType", "Input file format", choices = c("Tabular","Matrix")))),
-        column(3, div(id="tourreadout", selectInput("phenotypicResponse", "Choose readout", choices = c("% cell inhibition", "% cell viability"))))
-      ),
+       # column(5, div(id="tourinpfile",fileInput("fileinp", "Upload your data (*.xlsx, *.txt, *csv)", multiple = F, accept = NULL, width = NULL))),
+       # column(3, div(id="tourfiletype", selectInput("fileType", "Input file format", choices = c("Tabular","Matrix")))),
+       # column(3, div(id="tourreadout", selectInput("phenotypicResponse", "Choose readout", choices = c("% cell inhibition", "% cell viability"))))
+        column(4, fileInput("fileinp", "Upload your data (*.xlsx, *.txt, *csv)", multiple = F, accept = NULL, width = NULL)),
+        column(3, selectInput("fileType", "Input file format", choices = c("Tabular","Matrix"))),
+        column(3, selectInput("phenotypicResponse", "Choose readout", choices = c("% cell inhibition", "% cell viability"))),
+        column(2, checkboxInput("fitcurve","Replace single-agent responses with fitted values"))
+	),
 	  div(id="tourexpdata",
 		  tags$p(tags$b("OR"), "download example data"),
 		  downloadButton(outputId = "loadExData", label = "Example data", class = "butEx")), 
@@ -32,6 +35,10 @@ shinyServer(function(input, output, session) {
     ))
     shinyjs::disable("start");
   })
+  # fit curve
+  observeEvent(input$fitcurve, { fcurve <<- input$fitcurve  })
+  # docs
+  observeEvent(input$videobt, shinyjs::runjs('window.location.replace("http://decrease.fimm.fi/decrease/decrease_docs/")'))
   
   ###########################################    On start click    ###########################################   
   observeEvent(input$start, {
@@ -142,10 +149,9 @@ shinyServer(function(input, output, session) {
         
         # source file load functions
         source("getData.R")
-        
-        tryCatch({
+    tryCatch({
+			saveRDS(tools::file_ext(input$fileinp$name), "input$fileType")
 
-          #browser();
           if(input$fileType == "Tabular" && tools::file_ext(input$fileinp$name) %in% c("txt", "csv", "xlsx"))
           {
             if (tools::file_ext(input$fileinp$name) == 'xlsx') annot <<- openxlsx::read.xlsx(input$fileinp$datapath)
@@ -156,24 +162,35 @@ shinyServer(function(input, output, session) {
             annot <<- annot[!apply(is.na(annot) | annot == "", 1, all),] # rows with all NA
             annot <<- annot[,!apply(is.na(annot) | annot == "", 2, all)] # cols with all NA
             annot$Conc1 = as.numeric(as.character(annot$Conc1)); annot$Conc2 = as.numeric(as.character(annot$Conc2)); annot$Response = as.numeric(as.character(annot$Response));
-            enable("start"); 
+          
+		  } else if (input$fileType == "Matrix" && tools::file_ext(input$fileinp$name) %in% c("txt", "csv", "xlsx")) {
             
-          } else if (input$fileType == "Matrix" && tools::file_ext(input$fileinp$name) %in% c("txt", "csv", ".xlsx")) {
-            
-            if (ext == 'xlsx') annot <<- openxlsx::read.xlsx(input$annotfile$datapath, colNames = F)
-            else if (ext %in% c("txt", "csv")) annot <<- read.table(file = input$annotfile$datapath, header = F, sep =",",  row.names = NULL, fill = T)
+            if (tools::file_ext(input$fileinp$name) == 'xlsx') annot <<- openxlsx::read.xlsx(input$fileinp$datapath, colNames = F)
+            else if (tools::file_ext(input$fileinp$name) %in% c("txt", "csv")) annot <<- read.table(file = input$fileinp$datapath, header = F, sep =",",  row.names = NULL, fill = T)
             
             # take care of NA's and empty rows/cols       
             annot <<- data.frame(lapply(annot, as.character), stringsAsFactors=F)
             annot <<- annot[!apply(is.na(annot) | annot == "", 1, all),] # rows with all NA
             annot <<- annot[,!apply(is.na(annot) | annot == "", 2, all)] # cols with all NA
-            
-            D1 = sum(grepl("Drug1:", annot[,1])); D2= sum(grepl("Drug2:", annot[,1])); ConcUn = sum(grepl("ConcUnit:", annot[,1]))
-            enable("start"); 
-          }
-          
+
+			D1 = sum(grepl("Drug1", annot[,1])); d1_ <- grep("Drug1", annot[,1]);
+			annot <<- do.call("rbind", lapply(1:D1, function(i){
+			  if(i==D1) annotComb <- annot[d1_[i]:nrow(annot),] else annotComb <- annot[d1_[i]:(d1_[i+1]-1),] 
+			  Matr = annotComb[4:nrow(annotComb),]; 
+			  colnames(Matr) = Matr[1,]; Matr = Matr[-1,]; rownames(Matr) = Matr[,1]; Matr = Matr[,-1];
+			  Reshaped = na.omit(reshape2::melt(data.matrix(Matr))); colnames(Reshaped) = c("Conc1","Conc2","Response");
+			  Reshaped$ConcUnit = annotComb[3,2]; Reshaped$Drug1 = annotComb[1,2]; Reshaped$Drug2 = annotComb[2,2]; Reshaped$PairIndex = i;
+			  Reshaped
+			}))
+		  } else {
+		    saveRDS("wrong","wrong")
+		    toastr_info(paste0("DECREASE only support <b>.xlsx</b>, <b>.csv</b>, and <b>.txt</b> file formats!"), title = "Unexpected file format!", closeButton = !0, progressBar = !0, position = "top-right", preventDuplicates = !0,
+		                 showDuration = 300, hideDuration = 1000, timeOut = 10000, extendedTimeOut = 1000, showEasing = "swing",
+		                 hideEasing = "swing", showMethod = "fadeIn", hideMethod = "fadeOut")
+		  }
+          enable("start"); 
           annot$Conc1 <<- as.numeric(annot$Conc1); annot$Conc2 <<- as.numeric(annot$Conc2); annot$Response <<- as.numeric(annot$Response);
-        })
+     
         
         # convert to viability
         if(input$phenotypicResponse == "% cell inhibition") annot$Response <<- 100 -annot$Response
@@ -183,6 +200,15 @@ shinyServer(function(input, output, session) {
           combiK <- annot[annot$PairIndex == unique(annot$PairIndex)[[k]], ];
           file.exists(paste0(combiK$Drug1[[1]], " & ", combiK$Drug2[[1]], ".RDS"))
         }))){enable("save_results");}
+          
+    },
+			error=function(cond) {
+			  saveRDS("wrong2","wrong2")
+			  toastr_error(paste0("Something wrong with your file that cannot be handled by application. Please check that <b>\"",input$fileType,"\"</b> is a correct file format.For more information about input data see <b>section 3</b> in <a style='cursor: pointer;' onclick='javascript:techdoc()'>technical documentation</a>."), title = "Unhandled error occurred!", closeButton = !0, progressBar = !0, position = "top-right", preventDuplicates = !0,
+			               showDuration = 300, hideDuration = 1000, timeOut = 10000, extendedTimeOut = 1000, showEasing = "swing",
+			               hideEasing = "swing", showMethod = "fadeIn", hideMethod = "fadeOut")			  
+			  annot <<- NULL
+			})
         
       } else {
         warning("wrong file format")

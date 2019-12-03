@@ -1,12 +1,13 @@
+.libPaths("/home/shiny/R/x86_64-redhat-linux-gnu-library/3.4/")
 library(shiny); library(shinythemes); library(shinyjs); library(shinytoastr)
 
 shinyUI(navbarPage(
 
   title=div(class="myheader", img(class = "imgLogo", src="logo.png", height="48", width="55"),  div(class="decTec", "DeCREaSE"), 
                    
-                           div(class="reference", tags$a(href="http://www.ncbi.nlm.nih.gov/pubmed/26949479", target="_blank", 
+                           div(class="reference", tags$a(href="https://www.nature.com/articles/s42256-019-0122-4", target="_blank", 
                                   tags$p("Reference"))
-                               ),
+                               ), actionButton("videobt","User guide",icon("file-text"),class='btn-primary'),
                            div(class="author", icon("user", lib = "glyphicon"))
             ),
                    
@@ -62,7 +63,15 @@ shinyUI(navbarPage(
 	br(),br(),br(),br(),br(),br(),br(),br(),br(),
   tags$div(
     HTML("<img src = 'footer.png' class = 'fixFoot' ></img>"),
+    #HTML("<img src = 'browsersupport.png' class = 'browserTop' ></img>"),
     HTML('<script type="text/javascript" id = "feedbacksc"> window._urq=window._urq||[];_urq.push(["initSite","b3f010a9-182f-47c2-ac6f-7316a1e52b1d"]);(function(){var a=document.createElement("script");a.type="text/javascript";a.async=!0;a.src="https:"==document.location.protocol?"https://cdn.userreport.com/userreport.js":"http://cdn.userreport.com/userreport.js";var b=document.getElementsByTagName("script")[0];b.parentNode.insertBefore(a,b)})();</script>')
   )
+ 
+ 
+
+ #tags$script(src="particles.min.js"), tags$script(src="app.js")
+
+ #HTML('<canvas class="background"></canvas>')
+ #actionButton("getstarted","Get strated", width = "130px", class = "getstartedbutton")
 )
 )
